@@ -1,0 +1,68 @@
+﻿<UserControl x:Class="PVI_WPF.ParamPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:PVI_WPF"
+             mc:Ignorable="d" 
+             d:DesignHeight="480" d:DesignWidth="310">
+    <StackPanel Margin="0,0,0,10">
+        <GroupBox Header="通道与二值化">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock Margin="5,2,0,1" Text="通道"/>
+                        <ComboBox Width="80" HorizontalAlignment="Left" Margin="5,0" SelectedValue="{Binding Channel}" SelectedValuePath="Content">
+                            <ComboBoxItem Content="灰度"/>
+                            <ComboBoxItem Content="饱和度"/>
+                        </ComboBox>
+                    </StackPanel>
+                    
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock Margin="5,2,0,1" Text="目标亮暗"/>
+                        <ComboBox Width="80" HorizontalAlignment="Left" Margin="5,0" SelectedValue="{Binding LightOrDark}" SelectedValuePath="Content">
+                            <ComboBoxItem Content="dark"/>
+                            <ComboBoxItem Content="light"/>
+                        </ComboBox>
+                    </StackPanel>
+                    
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock Margin="5,2,0,1" Text="阈值"/>
+                        <ComboBox Width="100" HorizontalAlignment="Left" Margin="5,0" SelectedValue="{Binding ThresholdMethod}" SelectedValuePath="Content">
+                            <ComboBoxItem Content="Otsu 自动"/>
+                            <ComboBoxItem Content="固定阈值"/>
+                        </ComboBox>
+                    </StackPanel>
+                    
+                </StackPanel>
+                <!-- 二值化方式 / 暗亮 / 固定阈值-->
+                <TextBlock Margin="5,8,0,1" Text="固定阈值"/>
+                <TextBox  Margin="5,0" Text="{Binding FixedThreshold,UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox Header="区域处理">
+            <StackPanel>
+                <TextBlock Margin="5,8,0,1" Text="去噪面积下限"/>
+                <TextBox Margin="5,0,5,5" Text="{Binding NoiseMinArea,UpdateSourceTrigger=PropertyChanged}"/>
+                <CheckBox Margin="5,2" Content="填孔" IsChecked="{Binding FillHoles}"/>
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox Header="判定规则">
+            <StackPanel>
+                <TextBlock Margin="5,5,0,2" Text="面积下限"/>
+                <TextBox Margin="5,0" Text="{Binding MinArea,UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Margin="5,5,0,2" Text="面积上限"/>
+                <TextBox Margin="5,0" Text="{Binding MaxArea,UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Margin="5,5,0,2" Text="长宽比下限"/>
+                <TextBox Margin="5,0" Text="{Binding MinAspect,UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Margin="5,5,0,2" Text="饱和度下限"/>
+                <TextBox Margin="5,0" Text="{Binding MinStaturation,UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Margin="5,5,0,2" Text="触边边距"/>
+                <TextBox Margin="5,0" Text="{Binding BorderMargin,UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+        </GroupBox>
+    </StackPanel>
+</UserControl>
