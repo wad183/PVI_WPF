@@ -41,7 +41,7 @@
             </Setter>
         </Style>
     </Window.Resources>
-    <Grid Background="#FFFDFDF3">
+    <Grid Background="#FFABBDDA">
         <Grid.RowDefinitions>
             <RowDefinition Height="480"/>
             <RowDefinition Height="*"/>

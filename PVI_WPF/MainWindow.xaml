@@ -255,7 +255,22 @@ Command="{Binding DetectCommand}" BorderBrush="LightGray" BorderThickness="0.8"/
  
                 <TabItem Header="日志" Width="145">
                     <Border CornerRadius="5" BorderThickness="1" BorderBrush="LightGray">
-                        <ListBox x:Name="LogList" ItemsSource="{Binding logs}"
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="40"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="5">
+                                <TextBlock VerticalAlignment="Center" Margin="0,0,5,0" Text="等级筛选"/>
+                                <ComboBox SelectedIndex="0" Width="60" Height="25" SelectedValue="{Binding SelectedFilter}" SelectedValuePath="Content">
+                                    <ComboBoxItem Content="全部"/>
+                                    <ComboBoxItem Content="警告"/>
+                                    <ComboBoxItem Content="错误"/>
+                                    <ComboBoxItem Content="信息"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <ListBox x:Name="LogList" ItemsSource="{Binding LogsItemsView}"
+                                     Grid.Row="1"
                  FontFamily="Consolas" FontSize="12"
                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
                             <ListBox.ItemTemplate>
@@ -265,19 +280,20 @@ Command="{Binding DetectCommand}" BorderBrush="LightGray" BorderThickness="0.8"/
                                         <TextBlock x:Name="lv" Text="{Binding LevelText}" Width="38"/>
                                         <TextBlock Text="{Binding Tag}" Foreground="#1171D1" Width="72"
                                    TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Height="30" TextWrapping="Wrap" Text="{Binding Message}"/>
+                                        <TextBlock TextWrapping="Wrap" Text="{Binding Message}"/>
                                     </StackPanel>
                                     <DataTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding LevelText}" Value="Warn">
+                                        <DataTrigger Binding="{Binding level}" Value="Warn">
                                             <Setter TargetName="lv" Property="Foreground" Value="DarkOrange"/>
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding LevelText}" Value="Error">
+                                        <DataTrigger Binding="{Binding level}" Value="Error">
                                             <Setter TargetName="lv" Property="Foreground" Value="Red"/>
                                         </DataTrigger>
                                     </DataTemplate.Triggers>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                        </Grid>
                     </Border>
                 </TabItem>
             </TabControl>

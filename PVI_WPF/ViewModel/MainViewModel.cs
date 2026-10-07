@@ -1,14 +1,16 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using HalconDotNet;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Threading;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using HalconDotNet;
 
 namespace PVI_WPF
 {
@@ -23,6 +25,8 @@ namespace PVI_WPF
 
         public event Action<string>? ShowImageRequested;
         public event Action<string,List<PillResult>>? DetectionCompleted;
+
+        public ICollectionView LogsItemsView { get; }
         #endregion
 
         #region 状态机
@@ -54,7 +58,9 @@ namespace PVI_WPF
 
         [ObservableProperty] private string _newName = "";            
         [ObservableProperty] private paramProfile? _slelctedParams;    
-        [ObservableProperty] private ObservableCollection<paramProfile> _savedParams = new();  
+        [ObservableProperty] private ObservableCollection<paramProfile> _savedParams = new();
+
+        [ObservableProperty]private string _selectedFilter = "全部";
         #endregion
 
         #region 构造函数
@@ -64,15 +70,19 @@ namespace PVI_WPF
             autoScrollTimer = new DispatcherTimer();
             autoScrollTimer.Tick += AutoScrollTimer_Tick;
 
+            
+
             AddLog(LogLevelKind.Info, $"HalconRoot = {App.HalconRoot}");
             AddLog(LogLevelKind.Info, $"配置文件路径{detectService.Floder}");
             AddLog(LogLevelKind.Warn, "测试Warn", "warn");
             AddLog(LogLevelKind.Error, "测试error", "错误");
+
+            LogsItemsView = CollectionViewSource.GetDefaultView(logs);
         }
         #endregion
 
         #region Command
-        [RelayCommand]
+        [RelayCommand]//保存配置
         private void SaveNewParam()
         {
             string name = (NewName ?? "").Trim();
@@ -86,10 +96,10 @@ namespace PVI_WPF
             AddLog(LogLevelKind.Info, $"已保存配置:{name}");
             detectService.Save(name, Params);
             SavedParams.Add(new paramProfile { Name = name, detectParams = Params });
-            
+            MessageBox.Show($"已保存配置:{name}");
         }
 
-        [RelayCommand]
+        [RelayCommand]//删除配置
         private void DelaySavedParam()
         {
             if (SlelctedParams == null) return;
@@ -100,10 +110,10 @@ namespace PVI_WPF
             AddLog(LogLevelKind.Info, $"已删除配置{SlelctedParams.Name}");
             detectService.Delete(SlelctedParams.Name);
             SavedParams?.Remove(SlelctedParams);
-            
+            MessageBox.Show($"已删除配置{SlelctedParams.Name}");
         }
 
-        [RelayCommand]
+        [RelayCommand]//加载配置
         private void LoadSavedParams()
         {
             if (SlelctedParams == null) {return; }
@@ -113,10 +123,11 @@ namespace PVI_WPF
 
             Params = loaded;
             AddLog(LogLevelKind.Info, $"已加载配置:{SlelctedParams.Name}");
+            MessageBox.Show($"已加载配置:{SlelctedParams.Name}");
         }
 
 
-        [RelayCommand]
+        [RelayCommand]//选择文件夹
         private void SelectFolder()
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog();
@@ -135,7 +146,7 @@ namespace PVI_WPF
             }
         }
 
-        [RelayCommand]
+        [RelayCommand] //检测 获取结果 更新检测结果 传参
         private void Detect()
         {
             if(imageService.CurrentImage is not { } item)
@@ -167,6 +178,7 @@ namespace PVI_WPF
                 AddLog(LogLevelKind.Error, $"{item.ImageName}({imageService.CurrentIndex})检测失败");
             }
         }
+
         [RelayCommand(CanExecute = nameof(CanNextImage))]
         private void NextImage()
         {
@@ -192,7 +204,32 @@ namespace PVI_WPF
             return imageService.CurrentIndex > 0;
         }
         #endregion
+
         #region OnXXChanged
+
+        partial void OnSelectedFilterChanged(string value)
+        {
+            if (value == "全部")
+            {
+                LogsItemsView.Filter = null;
+            }
+            else if (value == "警告")
+            {
+                LogsItemsView.Filter = i => i is LogEntry log && log.LevelText == "警告";
+            }
+            else if (value == "错误")
+            {
+                LogsItemsView.Filter = i => i is LogEntry log && log.LevelText == "错误";
+            }
+            else if (value == "信息")
+            {
+                LogsItemsView.Filter = i => i is LogEntry log && log.LevelText == "信息";
+            }
+            else
+            {
+                MessageBox.Show("选项不存在","错误");
+            }
+        }
         partial void OnParamsChanged(DetectParams value)
         {
             Detect();
