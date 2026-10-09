@@ -183,13 +183,32 @@
                     <!--全写Border里-->
                     <Border CornerRadius="5" BorderThickness="1" BorderBrush="LightGray">
                         <StackPanel Orientation="Vertical">
-                            <DataGrid Height="550" ItemsSource="{Binding PillResults}" AutoGenerateColumns="False"
+                            <!--筛选-->
+                            <StackPanel Orientation="Horizontal" Margin="5,5,5,0">
+                                <CheckBox Content="只看NG" IsChecked="{Binding OnlyNg}" VerticalAlignment="Center"/>
+                                <Button Style="{StaticResource UserOperateBtn}" Content="查询" Margin="10,0,0,0"
+                                        Command="{Binding QueryHistoryCommand}" BorderBrush="LightGray" BorderThickness="0.8"/>
+                                <TextBlock Text="{Binding HistorySummary}" VerticalAlignment="Center"
+                                           Margin="10,0,0,0" FontSize="14" Foreground="#1171D1"/>
+                            </StackPanel>
+
+                            <!--历史结果表 -->
+                            <DataGrid Height="250" Margin="5,4,5,0" ItemsSource="{Binding HistoryRows}"
+                                      AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                                      SelectionMode="Single">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="时间"    Binding="{Binding TimeText}"     Width="105"/>
+                                    <DataGridTextColumn Header="文件"    Binding="{Binding FileName}"     Width="85"/>
+                                    <DataGridTextColumn Header="总数"    Binding="{Binding Total}"        Width="50"/>
+                                    <DataGridTextColumn Header="OK"      Binding="{Binding OkCount}"      Width="45"/>
+                                    <DataGridTextColumn Header="NG"      Binding="{Binding NgCount}"      Width="45"/>
+                                    <DataGridTextColumn Header="复检"    Binding="{Binding ReviewCount}"  Width="50"/>
+                                    <DataGridTextColumn Header="耗时ms"  Binding="{Binding ElapsedMs}"    Width="65"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <DataGrid Height="280" Margin="5" ItemsSource="{Binding PillResults}" AutoGenerateColumns="False"
                                       IsReadOnly="True" CanUserAddRows="False">
-                                <DataGrid.ColumnHeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader">
-                                        <Setter Property="FontSize" Value="22"/>
-                                    </Style>
-                                </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="序号"   Binding="{Binding index}" Width="60"/>
                                     <DataGridTextColumn Header="行"     Binding="{Binding Row}" Width="60"/>
@@ -200,13 +219,19 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                             <TextBlock Text="{Binding ResultSummary,StringFormat='检测结果:{0}'}"
-                                       FontSize="15" Margin="10,5,0,0" HorizontalAlignment="Left"/>
+                                       FontSize="15" Margin="5,5,0,0" HorizontalAlignment="Left"/>
                             <StackPanel Orientation="Horizontal">
                                 <Button Style="{StaticResource UserOperateBtn}" Content="重新检测" Margin="5,0"
-Command="{Binding DetectCommand}" BorderBrush="LightGray" BorderThickness="0.8"/>
+Command="{Binding DetectCommand}" ToolTip="快捷键:R" BorderBrush="LightGray" BorderThickness="0.8"/>
+                               
                                 <Button Style="{StaticResource UserOperateBtn}"
-                                    Content="导出CSV" BorderThickness="0.5" BorderBrush="LightGray"
-                                    HorizontalAlignment="Left" Margin="20,0,0,0"/>
+                                    Content="导出当前图" BorderThickness="0.8" BorderBrush="LightGray"
+                                    Command="{Binding ExportCurrentCommand}"
+                                    HorizontalAlignment="Left" Margin="10,0,0,0"/>
+                                <Button Style="{StaticResource UserOperateBtn}"
+                                    Content="导出汇总" BorderThickness="0.8" BorderBrush="LightGray"
+                                    Command="{Binding ExportHistoryCommand}"
+                                    HorizontalAlignment="Left" Margin="10,0,0,0"/>
                             </StackPanel>
 
                         </StackPanel>
@@ -232,7 +257,7 @@ Command="{Binding DetectCommand}" BorderBrush="LightGray" BorderThickness="0.8"/
                             <Button Content="⚙ 配置" BorderThickness="1.5"
                                 Style="{StaticResource UserOperateBtn}" Click="set"
                                >
-                                <!--屎山TV最新力作-->
+                                
                                 <Button.BorderBrush>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                                         <GradientStop Color="IndianRed" Offset="0"/>

@@ -8,9 +8,8 @@ namespace PVI_WPF
 {
     internal class DetectParams
     {
-        // ↓↓↓ 这 4 个值是 2026-10-06 用 37 张图（D:\PictureForMvt\PillsPic）实测调出来的 ↓↓↓
-        //     依据：碎块 3011~8932（71 个） / 正常药片 17.4万~22.2万 / 正常长宽比 ≥1.39 / 正常饱和度 ≥71.4
-        public double NoiseMinArea { get; set; } = 20000;  // 去噪：小于它的碎块直接扔
+
+        public double NoiseMinArea { get; set; } = 20000;  // 去噪
         public bool FillHoles { get; set; } = true;   // 是否填孔
         public string Channel { get; set; } = "灰度"; //通道 灰度/饱和度
         public string ThresholdMethod { get; set; } = "Otsu 自动"; //otsu/固定阈值

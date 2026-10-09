@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 using System.IO;
 using Microsoft.Data.Sqlite;
 
-namespace PVI_WPF.Service
-{
+namespace PVI_WPF
+{ 
     internal class DataService
     {
-        private string _connectString;
+        private readonly string _connectString;      
 
         public string DbPath { get; }
 
@@ -19,10 +19,10 @@ namespace PVI_WPF.Service
             string FolderPath = Path.Combine(AppContext.BaseDirectory, $"{path}");
             Directory.CreateDirectory(FolderPath);
             DbPath = Path.Combine(FolderPath,"pvi.db");
-            _connectString = $"Data Source = {DbPath}";
-            CreatTables();
+            _connectString = $"Data Source={DbPath}";    
+            CreateTables();                              
         }
-        private void CreatTables() //ImageResult PillResult
+        private void CreateTables() //ImageResult PillResult
         {
             using SqliteConnection con = new SqliteConnection(_connectString);
             con.Open();
@@ -73,7 +73,8 @@ CREATE INDEX IF NOT EXISTS IX_PillResult_Image ON PillResult(ImageResultId);
             using SqliteTransaction tx = con.BeginTransaction();
 
             long imageId;
-            using (SqliteCommand cmd = new SqliteCommand())
+
+            using (SqliteCommand cmd = con.CreateCommand())
             {
                 cmd.Transaction = tx;
                 cmd.CommandText = @"
@@ -138,6 +139,47 @@ VALUES
             using SqliteDataReader reader = cmd.ExecuteReader();
             if (!reader.Read()) return (0, 0);
             return (reader.GetInt32(0), reader.GetInt32(1));
+        }
+
+        // ★ 新增：查历史结果（每张图只取【最新一次】；onlyNg=true 只看有 NG 的图）
+        public List<ImageRow> QueryImages(bool onlyNg)
+        {
+            var list = new List<ImageRow>();
+
+            using SqliteConnection conn = new SqliteConnection(_connectString);
+            conn.Open();
+            using SqliteCommand cmd = conn.CreateCommand();
+            // ★ 注意：判"最新一次"必须用 Id（自增主键），不能用 DetectedAt！
+            //   同一秒内检测两次（翻页重检/连续跑）时间戳会一模一样 → 用时间判断会选出多行。
+            cmd.CommandText = @"
+SELECT Id, FileName, ImagePath, Total, OkCount, NgCount, ReviewCount, ElapsedMs,
+       IFNULL(ProfileName,''), DetectedAt
+FROM ImageResult i
+WHERE i.Id = (SELECT MAX(Id) FROM ImageResult WHERE ImagePath = i.ImagePath)
+  AND ($onlyNg = 0 OR i.NgCount > 0)
+ORDER BY i.Id DESC;";
+
+            // 不拼 SQL 字符串，用参数（$onlyNg=0 就相当于"不筛"）
+            cmd.Parameters.AddWithValue("$onlyNg", onlyNg ? 1 : 0);
+
+            using SqliteDataReader r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                list.Add(new ImageRow
+                {
+                    Id = r.GetInt64(0),
+                    FileName = r.GetString(1),
+                    ImagePath = r.GetString(2),
+                    Total = r.GetInt32(3),
+                    OkCount = r.GetInt32(4),
+                    NgCount = r.GetInt32(5),
+                    ReviewCount = r.GetInt32(6),
+                    ElapsedMs = r.GetInt64(7),
+                    ProfileName = r.GetString(8),
+                    DetectedAt = r.GetString(9),
+                });
+            }
+            return list;
         }
     }
 }

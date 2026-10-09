@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;              // ★ 新增：新加的数据库代码用到 Path
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -21,6 +22,7 @@ namespace PVI_WPF
         DispatcherTimer autoScrollTimer;
 
         DetectService detectService = new DetectService();
+        DataService? dataService;                                   // ★ 新增：结果落库（初始化失败就为 null，不影响检测）
         public ObservableCollection<LogEntry> logs { get; } = new();
 
         public event Action<string>? ShowImageRequested;
@@ -29,8 +31,6 @@ namespace PVI_WPF
         public ICollectionView LogsItemsView { get; }
         #endregion
 
-        #region 状态机
-        #endregion
 
         #region 属性
         [ObservableProperty] private int _timerInterval = 1000; //ms
@@ -50,6 +50,16 @@ namespace PVI_WPF
 
         [ObservableProperty] private string _statusText = "就绪";
 
+
+        [ObservableProperty] private bool _onlyNg;                 // ★ 新增：只看NG
+        [ObservableProperty] private string _historySummary = "";  // ★ 新增：查询结果摘要
+
+        // ★ 新增：历史结果（从数据库查出来填这个）
+        public ObservableCollection<ImageRow> HistoryRows { get; } = new();
+
+        // ★ 新增：自动轮播统计（给"跑完打一条汇总日志"用）
+        private int _autoPills, _autoNg;
+        private readonly System.Diagnostics.Stopwatch _autoWatch = new();
 
         [ObservableProperty] private ObservableCollection<PillResult> _pillResults = new();
         [ObservableProperty] private string _resultSummary = "未检测";
@@ -76,6 +86,20 @@ namespace PVI_WPF
             AddLog(LogLevelKind.Info, $"配置文件路径{detectService.Floder}");
             AddLog(LogLevelKind.Warn, "测试Warn", "warn");
             AddLog(LogLevelKind.Error, "测试error", "错误");
+
+            // ★ 新增：数据库。跟配置同一个可写目录（detectService.Floder 是 ...\profiles，取它上一层）
+            //   用 try/catch 包住：数据库建不起来也不能让程序起不来
+            try
+            {
+                string writableDir = Path.GetDirectoryName(detectService.Floder) ?? AppContext.BaseDirectory;
+                dataService = new DataService(writableDir);
+                var dbCounts = dataService.GetCounts();
+                AddLog(LogLevelKind.Info, $"数据库={dataService.DbPath}  已有 {dbCounts.Images} 张图 / {dbCounts.Pills} 颗药");
+            }
+            catch (Exception ex)
+            {
+                AddLog(LogLevelKind.Warn, "数据库初始化失败：" + ex.Message + "（本次结果不会入库）");
+            }
 
             LogsItemsView = CollectionViewSource.GetDefaultView(logs);
         }
@@ -169,14 +193,144 @@ namespace PVI_WPF
                 int ng = results.Count(i => !i.IsOK && !i.IsIncomplete);
                 int review = results.Count(i => i.IsIncomplete);
 
+                // ★ 新增：自动轮播期间累计（结束时会打一条汇总）
+                if (IsAutoScroll) { _autoPills += results.Count; _autoNg += ng; }
+
                 ResultSummary = $"合格 {ok}   NG {ng}   复检 {review}  耗时{sw.ElapsedMilliseconds} ms";
                 AddLog(LogLevelKind.Info, $"{item.ImageName}检测完成,合格 {ok},NG {ng},复检 {review},耗时{sw.ElapsedMilliseconds}ms");
+
+                // ★ 新增：结果写库（一次检测 = 1 行图片 + N 行药片；失败只记日志，绝不影响检测）
+                try
+                {
+                    dataService?.Save(item.ImageName, item.ImagePath, results, Params, "", sw.ElapsedMilliseconds);
+                }
+                catch (Exception ex)
+                {
+                    AddLog(LogLevelKind.Warn, "结果写库失败：" + ex.Message);
+                }
+
                 DetectionCompleted?.Invoke(item.ImagePath,results);
             }
             catch(HalconException ex)
             {
                 AddLog(LogLevelKind.Error, $"{item.ImageName}({imageService.CurrentIndex})检测失败");
             }
+        }
+
+        // ★ 新增：查历史结果（从数据库读，每张图取最新一次）
+        [RelayCommand]
+        private void QueryHistory()
+        {
+            if (dataService == null) { AddLog(LogLevelKind.Warn, "数据库不可用，查不了历史"); return; }
+
+            HistoryRows.Clear();
+            foreach (ImageRow row in dataService.QueryImages(OnlyNg))
+                HistoryRows.Add(row);
+
+            HistorySummary = $"共 {HistoryRows.Count} 张   NG {HistoryRows.Sum(r => r.NgCount)} 颗";
+            AddLog(LogLevelKind.Info, $"查询历史：{HistorySummary}" + (OnlyNg ? "（只看NG）" : ""));
+        }
+
+        // ★ 新增：导出"当前筛选后的汇总"（一行一张图）
+        //   改：不再要求"先点查询" —— 直接按当前筛选条件查一次库再导出，顺便刷新表格
+        [RelayCommand]
+        private void ExportHistory()
+        {
+            if (dataService == null) { MessageBox.Show("数据库不可用"); return; }
+
+            List<ImageRow> rows;
+            try
+            {
+                rows = dataService.QueryImages(OnlyNg);
+            }
+            catch (Exception ex)
+            {
+                AddLog(LogLevelKind.Error, "查询失败：" + ex.Message);
+                MessageBox.Show("读取数据库失败：" + ex.Message);
+                return;
+            }
+
+            if (rows.Count == 0) { MessageBox.Show("数据库里还没有结果，先检测几张图"); return; }
+
+            // 顺手把界面上的表格也刷成"马上要导出的内容"
+            HistoryRows.Clear();
+            foreach (ImageRow row in rows) HistoryRows.Add(row);
+            HistorySummary = $"共 {rows.Count} 张   NG {rows.Sum(r => r.NgCount)} 颗";
+
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "CSV 文件|*.csv",
+                FileName = $"检测汇总_{DateTime.Now:yyyyMMdd_HHmm}.csv",
+                InitialDirectory = GetWritableExportDir()      // ★ 改：桌面写不了就自动换到能写的目录
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                CsvExporter.ExportImages(dlg.FileName, rows);
+                AddLog(LogLevelKind.Info, $"已导出汇总 {rows.Count} 条：{dlg.FileName}");
+                MessageBox.Show("导出完成：\n" + dlg.FileName);
+            }
+            catch (Exception ex)
+            {
+                AddLog(LogLevelKind.Error, "导出汇总失败：" + ex.Message);
+                // ★ 新增：把真实错误弹出来（原来只写日志，容易看不见）
+                MessageBox.Show($"导出失败：{ex.Message}\n\n目标路径：{dlg.FileName}\n当前用户：{Environment.UserName}",
+                                "导出失败");
+            }
+        }
+
+        // ★ 新增：导出"当前这张图的药片明细"（一行一颗）
+        [RelayCommand]
+        private void ExportCurrent()
+        {
+            if (PillResults.Count == 0) { MessageBox.Show("当前没有检测结果"); return; }
+
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "CSV 文件|*.csv",
+                FileName = $"{CurrentFileName}_{DateTime.Now:yyyyMMdd_HHmm}.csv",
+                InitialDirectory = GetWritableExportDir()      // ★ 改：桌面写不了就自动换到能写的目录
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                CsvExporter.ExportPills(dlg.FileName, CurrentFileName, PillResults);
+                AddLog(LogLevelKind.Info, $"已导出当前图明细 {PillResults.Count} 颗：{dlg.FileName}");
+            }
+            catch (Exception ex)
+            {
+                AddLog(LogLevelKind.Error, "导出明细失败：" + ex.Message);
+                // ★ 新增：把真实错误弹出来
+                MessageBox.Show($"导出失败：{ex.Message}\n\n目标路径：{dlg.FileName}\n当前用户：{Environment.UserName}",
+                                "导出失败");
+            }
+        }
+
+        /// <summary>
+        /// ★ 新增：找一个"能写"的目录，当导出弹窗的默认位置。
+        /// 有些受限环境（比如当前这个会话）连桌面都写不了，那就退到 exe 所在目录，
+        /// 免得用户选完桌面才被 Windows 弹"你没有权限在此位置保存"。
+        /// </summary>
+        private string GetWritableExportDir()
+        {
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            foreach (string dir in new[] { desktop, AppContext.BaseDirectory })
+            {
+                try
+                {
+                    string probe = Path.Combine(dir, "pvi_write_probe.tmp");
+                    File.WriteAllText(probe, "x");
+                    File.Delete(probe);
+
+                    if (dir != desktop)
+                        AddLog(LogLevelKind.Warn, $"桌面不可写，导出默认目录改为：{dir}");
+                    return dir;
+                }
+                catch { /* 这个目录不行，换下一个 */ }
+            }
+            return AppContext.BaseDirectory;
         }
 
         [RelayCommand(CanExecute = nameof(CanNextImage))]
@@ -247,12 +401,23 @@ namespace PVI_WPF
         {
             if (value)
             {
+                // ★ 新增：开始自动时清零统计
+                _autoPills = 0; _autoNg = 0; _autoWatch.Restart();
+
                 autoScrollTimer.Interval = TimeSpan.FromMilliseconds(TimerInterval);
                 autoScrollTimer.Start();
             }
             else
             {
                 autoScrollTimer.Stop();
+
+                // ★ 新增：自动跑完（或手动停）时，打一条汇总日志
+                if (_autoWatch.IsRunning)
+                {
+                    _autoWatch.Stop();
+                    AddLog(LogLevelKind.Info,
+                        $"自动检测结束：{_autoPills} 颗 / NG {_autoNg} / {_autoWatch.Elapsed.TotalSeconds:F1} s");
+                }
             }
         }
         partial void OnTimerIntervalChanged(int value)
